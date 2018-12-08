@@ -5,7 +5,9 @@
 
 A simple wrapper around git that allows for nested repositories.
 
-It's much simpler than `submodule` and `subtree`. You don't need to remeber any complicated commands. This wrapper is just a couple hunderd lines of code, but very effective.
+It's much simpler than `submodule` and `subtree`. You don't need to remeber any complicated commands. Just cd into your repo directories (parent or child doesn't matter) and run you git commands as usual.
+
+This wrapper is just a couple hunderd lines of code, but very effective.
 
 If you run `git add -A` in a parent-repo that contains one or several child-repos, the files of the child-repos will be added to the parent-repo, except for their `.git` directories.
 
@@ -96,6 +98,8 @@ This is pretty much it. The rest is just git as you know it. You just cd back an
 
 ## Install
 
+**build from source**
+
 You can build `gitsub` from source and put it into `PATH`:
 
 ```
@@ -111,6 +115,15 @@ pipenv run python make.py build
 
 sudo cp dist/pyinstaller/gitsub /usr/local/bin
 ```
+
+**add alias**
+
+You can call the `gitsub` directly or add an alias in your terminal `rc` file, e.g.
+
+`~/.zshrc`
+
+    alias git=gitsub
+
 
 ## Development
 
