@@ -255,10 +255,11 @@ def run():
 
     cmd = sys.argv[1]
 
-    if cmd not in ['add', 'commit', 'push']:
-        return
+    # if cmd not in ['add', 'commit', 'push']:
+    #     return
 
     if not is_repo_gitsub(repo_root):
+        sp.run(['git'] + sys.argv[1:])
         return
 
     with open(repo_gitsub_file, 'r') as f:
