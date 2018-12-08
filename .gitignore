@@ -1,0 +1,28 @@
+
+### Misc. ###
+INFO.fmw.md
+.cache/
+
+_public/
+
+### Python ###
+.mypy_cache/
+__pycache__/
+.env
+*.pyc
+/build/
+dist/
+slib.egg-info/
+
+### Editors ###
+*.iml
+.idea/
+.vscode
+.history
+
+### Vim ###
+.swp
+
+### testing ###
+**/tmp/*
+

@@ -1,0 +1,2 @@
+[subrepos]
+locations = [ "gitsub_test_sub_repo1", "gitsub_test_sub_repo2",]

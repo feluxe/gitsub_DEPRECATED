@@ -1,0 +1,26 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[[source]]
+url = "https://registry.meyerwolters.de/repository/mw-pypi/simple/"
+verify_ssl = true
+name = "mw-pypi"
+
+[dev-packages]
+pylint = "*"
+yapf = "*"
+mypy = "*"
+slib = "==1.0.0"
+docopt = "*"
+pyinstaller = "*"
+toml = "*"
+
+[packages]
+
+[requires]
+python_version = "3.7"
+
+[pipenv]
+allow_prereleases = true

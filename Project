@@ -1,0 +1,12 @@
+public_name: gitsub
+internal_name: gitsub
+proj_package_name: gitsub
+version: 0.0.1
+license: unlicensed
+author: Felix Meyer-Wolters
+author_email: felix@meyerwolters.de
+maintainer: Felix Meyer-Wolters
+maintainer_email: felix@meyerwolters.de
+url: https://github.com/feluxe/gitsub
+description: A git wrapper to handle nested git repositories.
+keywords: [git]
