@@ -17,7 +17,7 @@ In order to change child-repos, you just cd into them and run your git commands 
 
 If you clone a parent-repo that contains child-repos from a remote location you have to run `gitsub init-children`. You have to do that since the parent-repo does not store the `.git` of its children itself, just the `.gitsub` files, from which it gets the information branch-name, commit-hash and remote location.
 
-You cannot commit to a parent-repo, as long as any of its child-repos have changes, that were not yet pushed to remote. This ensures that the state of the parent-repo remains reproducible.
+You cannot commit to a parent-repo, as long as any of its child-repos have changes, that were not yet pushed to their remote locations. This ensures that the state of the parent-repo remains reproducible.
 
 
 ## Example
