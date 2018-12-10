@@ -48,7 +48,7 @@ def check_global_ignore():
         if os.path.isfile(path):
             with open(path, 'r') as f:
                 for line in f.readlines():
-                    if line in ['.gitsub_hidden/', '**/.gitsub_hidden']:
+                    if line.strip() in ['.gitsub_hidden/', '**/.gitsub_hidden']:
                         return
 
     print(
