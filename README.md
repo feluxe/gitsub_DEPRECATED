@@ -150,6 +150,7 @@ This will give you the properly nested repo tree:
 This is pretty much it. The rest is just git as you know it. You cd back and forth and run your git commands. The only limitation is that you have to push changes of child-repos to their remote location before you can commit to a parent.
 
 
+
 ## Commands
 
 `git init-parent`
