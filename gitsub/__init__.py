@@ -9,7 +9,7 @@ from sty import fg
 from concurrent.futures import ProcessPoolExecutor
 import requests
 
-CACHEDIR = '/home/felix/.cache/gitsub'
+CACHEDIR = os.path.expanduser('~/.cache/gitsub')
 
 err_msg_unstaged = """
 Note: You cannot update a parent repo, as long as it contains subrepos with changes 
