@@ -29,7 +29,7 @@ I think that's pretty much all you need to know.
 
 Let's start from scratch.
 
-We have this normal git rempo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything except for their a text file yet.
+We have this normal git rempo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything yet.
 
 ```
  parent_repo
@@ -40,7 +40,7 @@ We have this normal git rempo called `parent_repo`. The repo already contains tw
 
 ```
 
-Now let's init git repos for our child_repo dirs and create a text file for each:
+Now let's init git repos for our children and create a text file for each:
 
 ```
 $ cd child_repo1
@@ -106,8 +106,9 @@ $ git push origin master
 
 Now I can cd back to the parent and push the changes without gitsub complaining.
 
+Ok then... 
 
-Ok, now let's imagine we go to another computer and continue working from there.
+Now let's imagine we go to another computer and continue working from there.
 
 We clone the parent repo: `git clone http://...parent_repo.git`
 
@@ -146,7 +147,7 @@ This will give you the properly nested repo tree:
 
 ```
 
-This is pretty much it. The rest is just git as you know it. You just cd back and forth and run your git commands. The only limitation is that you have to push changes of child-repos to their remote location before you can commit to a parent.
+This is pretty much it. The rest is just git as you know it. You cd back and forth and run your git commands. The only limitation is that you have to push changes of child-repos to their remote location before you can commit to a parent.
 
 
 ## Commands
