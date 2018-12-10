@@ -3,30 +3,71 @@
 
 ## Description
 
-A simple wrapper around git that allows for nested repositories.
+A simple but effective wrapper around git that allows for nested repositories.
 
-It's much simpler than `submodule` and `subtree`. You don't need to remeber any complicated commands. Just cd into your repo directories (parent or child doesn't matter) and run you git commands as usual.
+It's much simpler than `submodule` and `subtree`. There are no compliated commands to remember... Just cd into your repo directories (parent or child doesn't matter) and run your git commands as usual.
 
-This wrapper is just a couple hunderd lines of code, but very effective.
 
-If you run `git add -A` in a parent-repo that contains one or several child-repos, the files of the child-repos will be added to the parent-repo, except for their `.git` directories.
+## How it works
 
-Without `gitsub` git would complain if you run `git add -A` in a directory that itself contains a `.git` in one of its subdirecotries. `gitsub` works around this by temporarily renaming each `.git` to `.git_hidden` for the duration of the command.
+If you run `git commit ...` in a parent-repo that contains one or several child-repos, the files of the child-repos will be added to the parent-repo, except for their `.git` directories.
 
-In order to change child-repos, you just cd into them and run your git commands as usual. Every child-repo contains a file `.gitsub` that stores the current active branch-name, the last commit-hash and the remote location. This file is updated automatically every time you commit something to a child-repo. Child-repos may add `.gitsub` to `.gitignore`.
+Without `gitsub` git would complain if you run `git add -A` in a directory that itself contains a `.git` dir in one of its subdirecotries. `gitsub` works around this by temporarily renaming each `.git` to `.git_hidden` for the duration of the command.
 
-If you clone a parent-repo that contains child-repos from a remote location you have to run `gitsub init-children`. You have to do that since the parent-repo does not store the `.git` of its children itself, just the `.gitsub` files, from which it gets the information branch-name, commit-hash and remote location.
+If you run `git commit ...` on a parent-repo, the current *branch-name*, *commit-hash* and *remote-url* of each child-repo is locked into `.gitsub` (a file that sits in the root directory of the parent).
 
-You cannot commit to a parent-repo, as long as any of its child-repos have changes, that were not yet pushed to their remote locations. This ensures that the state of the parent-repo remains reproducible.
+Since the parent-repo does't contain the `.git` direcories of its children, you have to run `git init-children` after you clone a parent-repo. That will automatically clone each child-repo into the correct sub direcotry of its parent and set the HEAD of each child-repo to the branch/commit that was locked in `.gitsub`.
+
+If you try to commit to a parent-repo while one of its children contains uncommited changes, gitsub will complain and tell you to commit and push the changes in order to proceed. This mechanism is needed to keep the child-repo files in sync with their commits, so that a `git clone myparent` and a `git inint-children` will always create the same tree.
+
+I think that's pretty much all you need to know. 
+
 
 
 ## Example
 
-Let's say you clone a parent-repo, that contains two children from a remote location:
 
-`git clone http.../parent_repo.git`
+Let's start from scratch.
 
-You get this:
+We have this normal git rempo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything except for their a text file yet.
+
+```
+ parent_repo
+ ├── .git
+ ├── foo
+ ├── child_repo1
+ └── child_repo2
+
+```
+
+Now let's init git repos for our child_repo dirs and create a text file for each:
+
+```
+$ cd child_repo1
+$ git init
+$ touch bar
+$ cd ..
+$ cd child_repo2
+$ git init
+$ touch baz
+```
+
+This leaves us with this:
+
+```
+ parent_repo
+ ├── .git
+ ├── foo
+ ├── child_repo1
+ │   ├── .git
+ │   └── bar
+ └── child_repo2
+     ├── .git
+     └── baz
+
+```
+
+Now we make our parent repo a gitsub parent by running `git init-parent` in `parent_repo`. This leaves us with this:
 
 ```
  parent_repo
@@ -34,19 +75,62 @@ You get this:
  ├── .gitsub    # Stores information about child-repos
  ├── foo
  ├─ child_repo1
- │    ├── .gitsub    # Stores branch-name, commit-hash and remote location
- │    └── bar
+ │   ├── .git
+ │   └── bar
  └── child_repo2
-      ├── .gitsub    # Stores branch-name, commit-hash and remote location
+      ├── .git
       └── baz
 
 ```
+
+Now I want to `add / commit / push` the changes for the parent repo, but if I run:
+
+```
+cd /parent_repo
+git add -A
+git commit -m 'changes'
+```
+
+I get an error such as this one:
+
+> Current commit cannot be found on remote for: child_repo1
+
+That means we have to run `commit/push` for child_repo1 and 2 in order to commit to our parent. For each child we run:
+
+```
+cd /parent_repo/child_repo[1|2]
+$ git add -A
+$ git commit -m 'changes'
+$ git push origin master
+```
+
+Now I can cd back to the parent and push the changes without gitsub complaining.
+
+
+Ok, now let's imagine we go to another computer and continue working from there.
+
+We clone the parent repo: `git clone http://...parent_repo.git`
+
+And get this:
+
+```
+ parent_repo
+ ├── .git
+ ├── .gitsub
+ ├── foo
+ ├── child_repo1
+ │    └── bar
+ └── child_repo2
+      └── baz
+
+```
+As you see, the children don't contain a `.git` dir. That's because the parent never stores the .git directories of its children. Instead, it stores the remote-urls, current commit-hash and branch-name for each child in `.gitsub`.
 
 In order to populate the children with their git repos, you run:
 
 `git init-children`
 
-Now you have the children with their git repos set to the branch and commit-hash stored in each `.gitsub`:
+This will give you the properly nested repo tree:
 
 ```
  parent_repo
@@ -54,46 +138,27 @@ Now you have the children with their git repos set to the branch and commit-hash
  ├── .gitsub
  ├── foo
  ├─ child_repo1
- │    ├── .git
- │    ├── .gitsub
+ │    ├── .git   # This was added
  │    └── bar
  └── child_repo2
-      ├── .git
-      ├── .gitsub
+      ├── .git  # This was added
       └── baz
 
 ```
 
-Let's say you want to change file `baz` in `child_repo2` and commit:
-
-```
-$ cd child_repo2
-$ echo "hello" > baz
-$ git add -A
-$ git commit -m 'Change file "baz"'
-```
-
-`child_repo2/.gitsub` now contains the hash of the latest commit.
-
-If you now cd back to the parent-repo and run a `git commit` you would get an error from `gitsub` complaining that you haven't pushed the commit of `child_repo2` to its remote location yet.
-
-In order to update the parent-repo we first need to run `git push` in `child_repo2`:
-
-```
-# we are still in parent_repo/child_repo2/
-$ git push origin master
-```
-
-Now we can cd back to the parent and commit the changes that we have in `child_repo2` there as well:
-
-```
-cd .. # (we are now in parent_repo)
-$ git add -A    
-$ git commit -m "Change file 'baz' in child-repo."
-$ git push origin master
-```
-
 This is pretty much it. The rest is just git as you know it. You just cd back and forth and run your git commands. The only limitation is that you have to push changes of child-repos to their remote location before you can commit to a parent.
+
+
+## Commands
+
+`git init-parent`
+
+Run this command in a git repo to create a `.gitsub` file at its root.
+
+
+`git init-children`
+
+After you clone a parent-repo, you need to run this command in oder to populate the children with their `.git` direcotry and set each HEAD to the correct branch/commit.
 
 
 ## Install
@@ -118,7 +183,7 @@ sudo cp dist/pyinstaller/gitsub /usr/local/bin
 
 **add alias**
 
-You can call the `gitsub` directly or add an alias in your terminal `rc` file, e.g.
+You can call the `gitsub` directly or add an alias to your terminal `rc` file, e.g.
 
 `~/.zshrc`
 

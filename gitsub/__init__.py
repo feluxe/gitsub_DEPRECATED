@@ -1,10 +1,19 @@
-import subprocess as sp
 import os
 import sys
 import toml
-from glob import glob
-from dataclasses import dataclass
-from slib.term.style import fg
+import subprocess as sp
+from typing import List, Optional, Union, Tuple
+from glob import iglob
+from dataclasses import dataclass, asdict
+from sty import fg
+from concurrent.futures import ProcessPoolExecutor
+import requests
+
+# If repo contains .gitsub it is parent.
+# First step search all .git dirs to get a list of children.
+# Create Repo object for each child
+# Run child repo checks
+# If all pass, save branch/commit/remote in parent .gitsub file.
 
 CACHEDIR = '/home/felix/.cache/gitsub'
 
@@ -14,14 +23,14 @@ that haven't been pushed to their remote locations.
 """
 
 
-def get_repo_root():
+def get_repo_root() -> str:
 
     cmd = ['git', 'rev-parse', '--show-toplevel']
 
     r = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
     if r.returncode == 128:
-        print("No git repo.")
+        pass
     elif r.returncode == 0:
         pass
     else:
@@ -30,10 +39,10 @@ def get_repo_root():
 
     repo_root = r.stdout.decode('utf8').replace('\n', '')
 
-    return repo_root
+    return repo_root or ''
 
 
-def is_repo_gitsub(repo_root):
+def is_repo_gitsub(repo_root: str) -> bool:
 
     if not repo_root:
         return False
@@ -45,69 +54,149 @@ def is_repo_gitsub(repo_root):
 
 
 @dataclass
-class Repo:
-    name: str
-    git_user: str
-    branch: str
-    commit: str
-    remote: str
-    is_ssh: str
-    ssh_remote: str
-    location: str
-    cache_location: str
+class Parent:
+    root_absolute: str
+    gitsub_file: str
+    locked_children: List[dict]
 
 
-def gather_subrepo_data(repo_root, repo_data):
+def get_parent_data(repo_root: str) -> Parent:
 
-    subrepos = []
+    gitsub_file = f"{repo_root}/.gitsub"
 
-    for subrepo_path in repo_data['subrepos']['locations']:
+    with open(gitsub_file, 'r') as f:
+        gitsub_data = toml.loads(f.read())
 
-        subrepo_root = f'{repo_root}/{subrepo_path}'
-        subrepo_gitsub_file = f'{subrepo_root}/.gitsub'
+    if not gitsub_data.get('children'):
+        gitsub_data['children'] = []
 
-        with open(subrepo_gitsub_file, 'r') as f:
-            subrepo_data = toml.loads(f.read())
-
-        remote_split = subrepo_data['repoinfo']['remote'].split('/')
-        name = remote_split[-1]
-        git_user = remote_split[-2]
-
-        repo = Repo(
-            branch=subrepo_data['repoinfo']['branch'],
-            commit=subrepo_data['repoinfo']['commit'],
-            remote=subrepo_data['repoinfo']['remote'],
-            is_ssh=subrepo_data['repoinfo'].get('ssh'),
-            ssh_remote=f"git@github.com:{git_user}/{name}",
-            name=name,
-            git_user=git_user,
-            location=subrepo_path,
-            cache_location=f'{CACHEDIR}/{git_user}/{name}',
-        )
-
-        subrepos.append(repo)
-
-    return subrepos
-
-
-def check_subrepos_for_unpushed_changes(repo_root, subrepos):
-
-    print(
-        f"{fg.li_black}Gitsub: Checking subrepos for unstaged changes.{fg.rs}"
+    return Parent(
+        root_absolute=repo_root,
+        gitsub_file=gitsub_file,
+        locked_children=gitsub_data['children'],
     )
 
-    for repo in subrepos:
 
-        subrepo_root = f'{repo_root}/{repo.location}'
+@dataclass
+class Remote:
+    name: str
+    url: str
+    is_ssh: bool
+    cache_root_absolute: str
 
-        cmd = ['git', 'status', '-s']
-        r = sp.run(cmd, cwd=subrepo_root, stdout=sp.PIPE)
-        changes = r.stdout.decode('utf8').replace('\n', '')
 
-        if changes != '':
-            print(f"\n    Unstaged Changes in: {repo.location}")
-            print(err_msg_unstaged)
-            sys.exit(1)
+def get_remote_locations(root_absolute: str) -> List[Remote]:
+
+    r = sp.run(
+        ['git', 'remote', '-v'],
+        cwd=root_absolute,
+        stdout=sp.PIPE,
+    )
+
+    out = r.stdout.decode('utf8')
+
+    remotes = []
+
+    if out:
+        for line in out.splitlines():
+            if line[-8:] == ' (fetch)':
+
+                remote_str = line[:-8]
+                remote_split = remote_str.split('\t')
+
+                remote_name = remote_split[0]
+                remote_url = remote_split[1]
+
+                split_url = remote_url.replace(':', '/').split('/')
+                remote_host = split_url[-3]
+                remote_user = split_url[-2]
+                remote_repo_name = split_url[-1]
+
+                root = f'{CACHEDIR}/{remote_host}/{remote_user}/{remote_repo_name}'
+
+                remote = Remote(
+                    name=remote_name,
+                    url=remote_url,
+                    is_ssh=remote_url.startswith('http') == False,
+                    cache_root_absolute=root,
+                )
+
+                remotes.append(remote)
+
+    if len(remotes) < 1:
+        print(f"Cannot find (fetch) remote for: {root_absolute}")
+
+    return remotes
+
+
+@dataclass
+class Child:
+    current_branch: str
+    current_commit: str
+    remotes: List[Remote]
+    root_relative: str
+    root_absolute: str
+
+
+def get_current_branch(repo_root: str) -> str:
+    cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+    r = sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
+    branch = r.stdout.decode('utf8').replace('\n', '')
+
+    return branch or ''
+
+
+def get_current_commit(repo_root: str) -> str:
+    cmd = ['git', 'rev-parse', '--verify', 'HEAD']
+    r = sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
+    commit = r.stdout.decode('utf8').replace('\n', '')
+
+    return commit or ''
+
+
+def get_child_data(parent: Parent, root_relative: str) -> Child:
+
+    root_absolute = f'{parent.root_absolute}/{root_relative}'
+
+    remotes = get_remote_locations(root_absolute)
+
+    child = Child(
+        current_branch=get_current_branch(root_absolute),
+        current_commit=get_current_commit(root_absolute),
+        remotes=remotes,
+        root_absolute=root_absolute,
+        root_relative=root_relative,
+    )
+
+    return child
+
+
+def has_child_changes_in_parent(
+    parent: Parent,
+    child: Child,
+) -> Tuple[bool, Child]:
+
+    cmd = ['git', 'status', '-s', child.root_relative]
+    r = sp.run(cmd, cwd=parent.root_absolute, stdout=sp.PIPE)
+    out = r.stdout.decode('utf8').replace('\n', '')
+
+    if out:
+        return True, child
+    else:
+        return False, child
+
+
+def has_child_unpushed_changes(parent: Parent, child: Child):
+
+    cmd = ['git', 'status', '-s']
+    r = sp.run(cmd, cwd=child.root_absolute, stdout=sp.PIPE)
+    changes = r.stdout.decode('utf8').replace('\n', '')
+
+    if changes != '':
+        print(f"\nUnstaged Changes in: {child.root_relative}")
+        return True
+    else:
+        return False
 
 
 def commit_exists(repo_root, commit):
@@ -122,182 +211,244 @@ def commit_exists(repo_root, commit):
         return False
 
 
-def filter_subrepo_not_changed_locally(repo_root, subrepos):
+def check_child_commit_exist_in_remote(parent: Parent, child: Child):
 
-    changed = []
+    for remote in child.remotes:
 
-    for subrepo in subrepos:
-        cmd = ['git', 'status', '-s', subrepo.location]
-        r = sp.run(cmd, cwd=repo_root, stdout=sp.PIPE)
-        out = r.stdout.decode('utf8').replace('\n', '')
-
-        if out:
-            changed.append(subrepo)
-
-    return changed
-
-
-def check_subrepos_commit_exist_in_remote(repo_root, subrepos):
-
-    procs = []
-
-    for repo in subrepos:
-
-        if not os.path.exists(f'{repo.cache_location}/.git'):
+        if not os.path.exists(remote.cache_root_absolute):
 
             print(
-                f"{fg.li_black}Gitsub: Cloning repo into cache-dir for:{fg.rs} {repo.location}"
+                f"{fg.li_black}Gitsub: Clone repo into cache-dir for: {child.root_relative}{fg.rs} "
             )
 
-            cmd = ['git', 'clone', repo.remote, repo.cache_location]
-            procs.append(sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.PIPE))
-
-    for p in procs:
-        p.communicate()
-
-    procs = []
-
-    for repo in subrepos:
+            cmd = ['git', 'clone', remote.url, remote.cache_root_absolute]
+            sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE)
 
         print(
-            f"{fg.li_black}Gitsub: Updating (fetch) cached repo for: {repo.location}{fg.rs}"
+            f"{fg.li_black}Gitsub: Update cached remote-repo for: {child.root_relative}{fg.rs}"
         )
 
-        if repo.is_ssh == True:
-            cmd = ['git', 'remote', 'set-url', 'origin', repo.ssh_remote]
-            sp.run(cmd, stdout=sp.PIPE, cwd=repo.cache_location)
+        if remote.is_ssh == True:
+            cmd = ['git', 'remote', 'set-url', 'origin', remote.url]
+            sp.run(cmd, stdout=sp.PIPE, cwd=remote.cache_root_absolute)
 
-        cmd = ['git', 'fetch', 'origin', repo.branch]
-        procs.append(
-            sp.Popen(
-                cmd, cwd=repo.cache_location, stdout=sp.PIPE, stderr=sp.PIPE
-            )
+        sp.run(
+            ['git', 'fetch', 'origin', child.current_branch],
+            cwd=remote.cache_root_absolute,
+            stdout=sp.PIPE,
+            stderr=sp.PIPE
         )
 
-    for p in procs:
-        p.communicate()
-
-    for repo in subrepos:
-
-        if not commit_exists(repo.cache_location, repo.commit):
-            print(repo)
+        if not commit_exists(remote.cache_root_absolute, child.current_commit):
             print(
-                f"\n    Current commit cannot be found on remote for: {repo.location}"
+                f"\n    Current commit cannot be found on remote for: {child.root_relative}"
             )
+            return False
+        else:
+            return True
+
+
+def rename_git_dir(repo_root, from_='', to=''):
+
+    src = f'{repo_root}/{from_}'
+    dst = f'{repo_root}/{to}'
+
+    if os.path.exists(src):
+        os.rename(src, dst)
+
+
+def update_gitsub_file(parent: Parent, child: Child) -> None:
+
+    with open(parent.gitsub_file, 'r') as f:
+        lock_data = toml.loads(f.read())
+
+    if not lock_data.get('children'):
+        lock_data['children'] = []
+
+    updated_child_data = {
+        'root_relative': child.root_relative,
+        'branch': child.current_branch,
+        'commit': child.current_commit,
+        'remotes': [{
+            'name': r.name,
+            'url': r.url,
+        } for r in child.remotes],
+    }
+
+    indexes = [
+        i for i, c in enumerate(lock_data['children'])
+        if c.get('root_relative') == child.root_relative
+    ]
+
+    if len(indexes) > 1:
+        for i in indexes[1:]:
+            lock_data['children'].pop(i)
+
+    if len(indexes) == 0:
+        lock_data['children'].append(updated_child_data)
+    else:
+        lock_data['children'][indexes[0]] = updated_child_data
+
+    with open(parent.gitsub_file, 'w') as f:
+        f.write(toml.dumps(lock_data))
+
+
+def get_children_from_fs(parent):
+
+    for git_dir_path in iglob('**/.git*', recursive=True):
+
+        # Skip the parent repo.
+        if git_dir_path == '.git':
+            continue
+
+        if git_dir_path.split('.')[-1] not in ['git', 'git_hidden']:
+            continue
+
+        if os.path.isfile(git_dir_path):
+            continue
+
+        child_root_relative = git_dir_path\
+            .replace('/.git_hidden', '')\
+            .replace('/.git', '')
+
+        if '.git_hidden' in git_dir_path:
+            rename_git_dir(
+                repo_root=child_root_relative,
+                from_='.git_hidden',
+                to='.git',
+            )
+
+        child = get_child_data(parent, child_root_relative)
+
+        yield child
+
+
+def validate_children(parent, children):
+
+    children_filtered = []
+    all_children = []  # gather children from the generator here.
+
+    with ProcessPoolExecutor() as executor:
+
+        # If children have not changed on the parent repo, there is no need for
+        # further checks. Filter out those who haven't changed on parent.
+
+        futures = []
+
+        for child in children:
+
+            all_children.append(child)
+
+            f = executor.submit(has_child_changes_in_parent, parent, child)
+            futures.append(f)
+
+        for f in futures:
+            r = f.result()
+            if r[0] == True:
+                children_filtered.append(r[1])
+
+        futures = []
+
+        for child in children_filtered:
+            f = executor.submit(has_child_unpushed_changes, parent, child)
+            futures.append(f)
+
+        if any([f.result() for f in futures]):
             print(err_msg_unstaged)
             sys.exit(1)
 
+        futures = []
 
-def get_current_branch(repo_root):
-    cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
-    r = sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
-    branch = r.stdout.decode('utf8').replace('\n', '')
+        for child in children_filtered:
+            f = executor.submit(requests.get, child.remotes[0].url)
+            futures.append((f, child))
 
-    return branch
+        children_parallel = []
 
+        for f, child in futures:
+            try:
+                r = f.result()
+                if r.status_code == 200:
+                    children_parallel.append(child)
+            except requests.exceptions.InvalidSchema:
+                pass
 
-def get_current_commit(repo_root):
-    cmd = ['git', 'rev-parse', '--verify', 'HEAD']
-    r = sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
-    commit = r.stdout.decode('utf8').replace('\n', '')
+        futures = []
+        for child in children_parallel:
+            f = executor.submit(
+                check_child_commit_exist_in_remote, parent, child
+            )
+            futures.append(f)
 
-    return commit
+        if not all([f.result() for f in futures]):
+            print(err_msg_unstaged)
+            sys.exit(1)
 
+        children_sequential = [
+            c for c in children_filtered if c not in children_parallel
+        ]
 
-def update_gitsub_file(repo_root):
+        for child in children_sequential:
+            if not check_child_commit_exist_in_remote(parent, child):
+                print(err_msg_unstaged)
+                sys.exit(1)
 
-    gitsub_file = f'{repo_root}/.gitsub'
-
-    with open(gitsub_file, 'r') as f:
-        gitsub_data = toml.loads(f.read())
-
-    if not gitsub_data.get('repoinfo'):
-        return
-
-    branch = get_current_branch(repo_root)
-    commit = get_current_commit(repo_root)
-
-    gitsub_data['repoinfo']['branch'] = branch
-    gitsub_data['repoinfo']['commit'] = commit
-
-    with open(gitsub_file, 'w') as f:
-        print(f"{fg.li_black}Gitsub: Updating .gitsub file{fg.rs}")
-        f.write(toml.dumps(gitsub_data))
-
-
-def rename_git_dirs(subrepos, from_='', to=''):
-
-    print(f"{fg.li_black}Gitsub: Renaming {from_} -> {to}{fg.rs}")
-
-    for repo in subrepos:
-
-        src = f'{repo.location}/{from_}'
-        dst = f'{repo.location}/{to}'
-
-        if os.path.exists(src):
-            os.rename(src, dst)
-
-
-def force_add_gitsub_files(repo_root, subrepos):
-
-    for repo in subrepos:
-        cmd = ['git', 'add', '--force', f'{repo.location}/.gitsub']
-        sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
+    return all_children
 
 
 def run():
-
-    repo_root = get_repo_root()
-    repo_gitsub_file = f'{repo_root}/.gitsub'
 
     if len(sys.argv) < 2:
         return
 
     cmd = sys.argv[1]
 
-    # if cmd not in ['add', 'commit', 'push']:
-    #     return
-
-    if not is_repo_gitsub(repo_root):
+    if cmd not in ['init', 'add', 'commit', 'push', 'init-gitsub']:
         sp.run(['git'] + sys.argv[1:])
         return
 
-    with open(repo_gitsub_file, 'r') as f:
-        repo_data = toml.loads(f.read())
+    parent_root_absolute = get_repo_root()
 
-    if repo_data.get('repoinfo'):
-        update_gitsub_file(repo_root)
+    if cmd == 'init-gitsub':
+        f = f'{parent_root_absolute}/.gitsub'
+        if os.path.exists(f):
+            print('This repo already has a .gitsub file in its root.')
+        else:
+            print(f'New .gitsub file at: {f}')
+            open(f, 'a').close()
+        return
 
-    if repo_data.get('subrepos'):
+    if not is_repo_gitsub(parent_root_absolute):
+        sp.run(['git'] + sys.argv[1:])
+        return
 
-        subrepos = gather_subrepo_data(repo_root, repo_data)
+    parent = get_parent_data(parent_root_absolute)
 
-        filtered = filter_subrepo_not_changed_locally(repo_root, subrepos)
+    children = get_children_from_fs(parent)
 
-        if filtered:
-            check_subrepos_for_unpushed_changes(repo_root, filtered)
-            check_subrepos_commit_exist_in_remote(repo_root, filtered)
+    if cmd == 'commit':
+        children = validate_children(parent, children)
 
-        if cmd == 'add':
+    if cmd == 'add':
 
-            force_add_gitsub_files(repo_root, subrepos)
-
-            rename_git_dirs(
-                subrepos,
+        for child in children:
+            rename_git_dir(
+                repo_root=child.root_absolute,
                 from_='.git',
                 to='.git_hidden',
             )
 
-    # RUN GIT COMMAND
-    print(f"{fg.li_black}Gitsub: Running git command.{fg.rs}")
+    # Run Git Command
+    print(f"{fg.li_black}Gitsub: Run git command.{fg.rs}")
     sp.run(['git'] + sys.argv[1:])
 
-    if repo_data.get('subrepos'):
-        rename_git_dirs(
-            subrepos,
+    # Lock child repos
+    for child in children:
+        rename_git_dir(
+            repo_root=child.root_absolute,
             from_='.git_hidden',
             to='.git',
         )
 
-    if repo_data.get('repoinfo'):
-        update_gitsub_file(repo_root)
+    for child in children:
+        update_gitsub_file(parent, child)
