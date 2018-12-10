@@ -9,12 +9,6 @@ from sty import fg
 from concurrent.futures import ProcessPoolExecutor
 import requests
 
-# If repo contains .gitsub it is parent.
-# First step search all .git dirs to get a list of children.
-# Create Repo object for each child
-# Run child repo checks
-# If all pass, save branch/commit/remote in parent .gitsub file.
-
 CACHEDIR = '/home/felix/.cache/gitsub'
 
 err_msg_unstaged = """
