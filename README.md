@@ -157,7 +157,7 @@ This is pretty much it. The rest is just git as you know it. You cd back and for
 
 `git init-parent`
 
-Run this command in a git repo to create a `.gitsub` file at its root.
+Run this command in a git repo to create a `.gitsub` file in its root.
 
 
 `git init-children`
