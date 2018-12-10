@@ -24,7 +24,7 @@ I think that's pretty much all you need to know.
 
 
 
-## Example
+## Example (Walkthrough)
 
 
 Let's start from scratch.
