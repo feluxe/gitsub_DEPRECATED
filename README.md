@@ -66,7 +66,7 @@ This leaves us with this:
 
 ```
 
-Now we make our parent repo a gitsub parent by running `git init-parent` in `parent_repo`. This will create a `.gitsub` file for locking child data.
+Now we make our parent repo a *gitsub parent* by running `git init-parent` in `parent_repo`. This will create a `.gitsub` file for locking child data.
 
 We have this now:
 
