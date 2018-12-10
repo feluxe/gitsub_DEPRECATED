@@ -12,7 +12,7 @@ It's much simpler than `submodule` and `subtree`. There are no complicated comma
 
 If you run `git commit ...` in a parent-repo that contains one or several child-repos, the files of the child-repos will be added to the parent-repo, except for their `.git` directories.
 
-Without `gitsub` git would complain if you run `git add -A` in a directory that itself contains a `.git` dir in one of its subdirecotries. `gitsub` works around this by temporarily renaming each `.git` to `.gitsub_hidden` for the duration of the command.
+Without `gitsub` git would complain if you run `git add -A` in a directory that itself contains a `.git` dir in one of its subdirecotries. `gitsub` works around this by temporarily renaming each `.git` to `.gitsub_hidden` for the duration of the command. Gitsub automatically sets the parent-repo to ignore `.gitsub_hidden/` directories.
 
 If you run `git commit ...` on a parent-repo, the current *branch-name*, *commit-hash* and *remote-url* of each child-repo is locked into `.gitsub` (a file that sits in the root directory of the parent).
 
@@ -29,7 +29,7 @@ I think that's pretty much all you need to know.
 
 Let's start from scratch.
 
-We have this normal git rempo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything yet.
+We have this normal git repo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything yet.
 
 ```
  parent_repo
@@ -59,20 +59,23 @@ This leaves us with this:
  ├── .git
  ├── foo
  ├── child_repo1
- │   ├── .git
- │   └── bar
+ │   ├── .git   # New
+ │   └── bar    # New
  └── child_repo2
-     ├── .git
-     └── baz
+     ├── .git   # New
+     └── baz    # New
 
 ```
 
-Now we make our parent repo a gitsub parent by running `git init-parent` in `parent_repo`. This leaves us with this:
+Now we make our parent repo a gitsub parent by running `git init-parent` in `parent_repo`. This will create a `.gitsub` file for locking child data.
+
+We have this now:
+
 
 ```
  parent_repo
  ├── .git
- ├── .gitsub    # Stores information about child-repos
+ ├── .gitsub    # New
  ├── foo
  ├─ child_repo1
  │   ├── .git
@@ -161,6 +164,15 @@ Run this command in a git repo to create a `.gitsub` file at its root.
 `git init-children`
 
 After you clone a parent-repo, you need to run this command in oder to populate the children with their `.git` direcotry and set each HEAD to the correct branch/commit.
+
+
+## Requirements
+
+* Unix like system
+* Tested with `git version 2.19`
+* Each child-repo must have set a remote location.
+* A cache directory: `~/.cache`
+
 
 
 ## Install

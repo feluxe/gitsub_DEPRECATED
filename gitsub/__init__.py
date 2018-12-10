@@ -2,11 +2,11 @@ import os
 import sys
 import toml
 import subprocess as sp
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union, Tuple, Generator
 from glob import iglob
 from dataclasses import dataclass, asdict
 from sty import fg
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, Future
 import requests
 
 CACHEDIR = os.path.expanduser('~/.cache/gitsub')
@@ -15,6 +15,49 @@ err_msg_unstaged = """
 Note: You cannot update a parent repo, as long as it contains subrepos with changes 
 that haven't been pushed to their remote locations.
 """
+
+
+def cmd_init_parent(parent_root_absolute):
+
+    f = f'{parent_root_absolute}/.gitsub'
+    if os.path.exists(f):
+        print('This repo already has a .gitsub file in its root.')
+    else:
+        print(f'New .gitsub file at: {f}')
+        open(f, 'a').close()
+
+
+def check_global_ignore():
+    """
+    Check if .gitsub_hidden globally.
+    """
+
+    r = sp.run(
+        ['git', 'config', '--get', 'core.excludesfile'],
+        stdout=sp.PIPE,
+    )
+
+    out = r.stdout.decode('utf8')
+
+    ignore_files = ['.gitignore']
+
+    for line in out.splitlines():
+        ignore_files.append(os.path.expanduser(line))
+
+    for path in ignore_files:
+        if os.path.isfile(path):
+            with open(path, 'r') as f:
+                for line in f.readlines():
+                    if line in ['.gitsub_hidden/', '**/.gitsub_hidden']:
+                        return
+
+    print(
+        "Error: Cannot find '.gitsub_hidden/' entry in global or local"\
+        "'.gitignore' file."\
+        "\n\nAdd this line:\n\n.gitsub_hidden/\n\nto your global or "\
+        "local gitignore file."
+    )
+    sys.exit(1)
 
 
 def get_repo_root() -> str:
@@ -55,6 +98,9 @@ class Parent:
 
 
 def get_parent_data(repo_root: str) -> Parent:
+    """
+    Create the parent data object.
+    """
 
     gitsub_file = f"{repo_root}/.gitsub"
 
@@ -80,6 +126,9 @@ class Remote:
 
 
 def get_remote_locations(root_absolute: str) -> List[Remote]:
+    """
+    Gather all registered remote locations for a git repo.
+    """
 
     r = sp.run(
         ['git', 'remote', '-v'],
@@ -133,6 +182,10 @@ class Child:
 
 
 def get_current_branch(repo_root: str) -> str:
+    """
+    Return the currently active branch for a git repo.
+    """
+
     cmd = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
     r = sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
     branch = r.stdout.decode('utf8').replace('\n', '')
@@ -141,6 +194,10 @@ def get_current_branch(repo_root: str) -> str:
 
 
 def get_current_commit(repo_root: str) -> str:
+    """
+    Return the currently active commit hash for a git repo.
+    """
+
     cmd = ['git', 'rev-parse', '--verify', 'HEAD']
     r = sp.run(cmd, stdout=sp.PIPE, cwd=repo_root)
     commit = r.stdout.decode('utf8').replace('\n', '')
@@ -149,6 +206,9 @@ def get_current_commit(repo_root: str) -> str:
 
 
 def get_child_data(parent: Parent, root_relative: str) -> Child:
+    """
+    Create child data object for each given child.
+    """
 
     root_absolute = f'{parent.root_absolute}/{root_relative}'
 
@@ -168,19 +228,27 @@ def get_child_data(parent: Parent, root_relative: str) -> Child:
 def has_child_changes_in_parent(
     parent: Parent,
     child: Child,
-) -> Tuple[bool, Child]:
+) -> bool:
+    """
+    Check if the parent repo finds changes for a child.
+    If the files of a child haven't changed on a parent, there is no need to
+    run any further check.
+    """
 
     cmd = ['git', 'status', '-s', child.root_relative]
     r = sp.run(cmd, cwd=parent.root_absolute, stdout=sp.PIPE)
     out = r.stdout.decode('utf8').replace('\n', '')
 
     if out:
-        return True, child
+        return True
     else:
-        return False, child
+        return False
 
 
 def has_child_unpushed_changes(parent: Parent, child: Child):
+    """
+    Check if the child repo itself has unpushed changes.
+    """
 
     cmd = ['git', 'status', '-s']
     r = sp.run(cmd, cwd=child.root_absolute, stdout=sp.PIPE)
@@ -194,6 +262,9 @@ def has_child_unpushed_changes(parent: Parent, child: Child):
 
 
 def commit_exists(repo_root, commit):
+    """
+    Check if a commit hash exists in a git repo.
+    """
 
     cmd = ['git', 'cat-file', '-t', commit]
     r = sp.run(cmd, cwd=repo_root, stdout=sp.PIPE, stderr=sp.PIPE)
@@ -206,6 +277,11 @@ def commit_exists(repo_root, commit):
 
 
 def check_child_commit_exist_in_remote(parent: Parent, child: Child):
+    """
+    Check if a commit exists in a remote repository.
+    This clones/fetches the remote repo into a cache dir and checks for the
+    commit in there.
+    """
 
     for remote in child.remotes:
 
@@ -243,6 +319,9 @@ def check_child_commit_exist_in_remote(parent: Parent, child: Child):
 
 
 def rename_git_dir(repo_root, from_='', to=''):
+    """
+    Simply rename `myrepo/.git` <> `myrepo/.gitsub_hidden`. (back and forth).
+    """
 
     src = f'{repo_root}/{from_}'
     dst = f'{repo_root}/{to}'
@@ -251,7 +330,10 @@ def rename_git_dir(repo_root, from_='', to=''):
         os.rename(src, dst)
 
 
-def update_gitsub_file(parent: Parent, child: Child) -> None:
+def lock_children(parent: Parent, child: Child) -> None:
+    """
+    Save gathered child data in `parent/.gitsub` (toml).
+    """
 
     with open(parent.gitsub_file, 'r') as f:
         lock_data = toml.loads(f.read())
@@ -287,7 +369,12 @@ def update_gitsub_file(parent: Parent, child: Child) -> None:
         f.write(toml.dumps(lock_data))
 
 
-def get_children_from_fs(parent):
+def get_children_from_fs(parent: Parent) -> Generator[Child, None, None]:
+    """
+    A generator searching for `.git`/`.gitsub_hidden` dirs.
+    It also runs some paht validation checks and renames `.gitsub_hidden` to 
+    `.git`.
+    """
 
     for git_dir_path in iglob('**/.git*', recursive=True):
 
@@ -306,26 +393,26 @@ def get_children_from_fs(parent):
             .replace('/.git', '')
 
         if '.gitsub_hidden' in git_dir_path:
-            rename_git_dir(
-                repo_root=child_root_relative,
-                from_='.gitsub_hidden',
-                to='.git',
-            )
+            rename_git_dir(child_root_relative, '.gitsub_hidden', '.git')
 
         child = get_child_data(parent, child_root_relative)
 
         yield child
 
 
-def validate_children(parent, children):
+def validate_children(
+    parent: Parent,
+    children: Generator[Child, None, None],
+) -> List[Child]:
+    """
+    Check if children are good enough for the parent to commit their files.
+    """
 
-    children_filtered = []
-    all_children = []  # gather children from the generator here.
+    all_children = []  # gather children from the generator here for later use.
 
     with ProcessPoolExecutor() as executor:
 
-        # If children have not changed on the parent repo, there is no need for
-        # further checks. Filter out those who haven't changed on parent.
+        # Check1 (in parallel): Has child changes in parent?
 
         futures = []
 
@@ -333,21 +420,24 @@ def validate_children(parent, children):
 
             all_children.append(child)
 
-            f = executor.submit(has_child_changes_in_parent, parent, child)
-            futures.append(f)
+            f: Future = executor.submit(
+                has_child_changes_in_parent, parent, child
+            )
+            futures.append((f, child))
 
-        for f in futures:
-            r = f.result()
-            if r[0] == True:
-                children_filtered.append(r[1])
+        children_filtered = [
+            child for f, child in futures if f.result() == True
+        ]
+
+        # Check2 (in parallel): Has child-repo unpushed changes?
 
         futures = []
 
         for child in children_filtered:
             f = executor.submit(has_child_unpushed_changes, parent, child)
-            futures.append(f)
+            futures.append((f, child))
 
-        if any([f.result() for f in futures]):
+        if any([f.result() for f, child in futures]):
             print(err_msg_unstaged)
             sys.exit(1)
 
@@ -357,26 +447,38 @@ def validate_children(parent, children):
             f = executor.submit(requests.get, child.remotes[0].url)
             futures.append((f, child))
 
+        # Gather children that require no remote authentication for 'check3'
+        # (in parallel). This only happens if there are more than 2 filtered
+        # children left.
+
         children_parallel = []
 
-        for f, child in futures:
-            try:
-                r = f.result()
-                if r.status_code == 200:
-                    children_parallel.append(child)
-            except requests.exceptions.InvalidSchema:
-                pass
+        if len(children_filtered) > 2:
 
-        futures = []
-        for child in children_parallel:
-            f = executor.submit(
-                check_child_commit_exist_in_remote, parent, child
-            )
-            futures.append(f)
+            for f, child in futures:
+                try:
+                    r = f.result()
+                    if r.status_code == 200:
+                        children_parallel.append(child)
+                except requests.exceptions.InvalidSchema:
+                    pass
 
-        if not all([f.result() for f in futures]):
-            print(err_msg_unstaged)
-            sys.exit(1)
+            # Check3 (in parrallel): Check if current commit exists in remote repo?
+            # This is for repos that require no login data from the user.
+
+            futures = []
+            for child in children_parallel:
+                f = executor.submit(
+                    check_child_commit_exist_in_remote, parent, child
+                )
+                futures.append((f, child))
+
+            if not all([f.result() for f, child in futures]):
+                print(err_msg_unstaged)
+                sys.exit(1)
+
+        # Check3 (sequential): This is for repos that require login data from
+        # the user.
 
         children_sequential = [
             c for c in children_filtered if c not in children_parallel
@@ -390,31 +492,38 @@ def validate_children(parent, children):
     return all_children
 
 
+def run_git_cmd(cmd, args):
+    sp.run(['git'] + [cmd] + args)
+
+
 def run():
 
     if len(sys.argv) < 2:
         return
 
     cmd = sys.argv[1]
+    args = sys.argv[2:]
 
     if cmd not in ['init', 'add', 'commit', 'push', 'init-gitsub']:
-        sp.run(['git'] + sys.argv[1:])
+        run_git_cmd(cmd, args)
         return
 
     parent_root_absolute = get_repo_root()
 
-    if cmd == 'init-gitsub':
-        f = f'{parent_root_absolute}/.gitsub'
-        if os.path.exists(f):
-            print('This repo already has a .gitsub file in its root.')
-        else:
-            print(f'New .gitsub file at: {f}')
-            open(f, 'a').close()
+    if cmd == 'init-paretn':
+        cmd_init_parent(parent_root_absolute)
         return
 
     if not is_repo_gitsub(parent_root_absolute):
-        sp.run(['git'] + sys.argv[1:])
+        run_git_cmd(cmd, args)
         return
+
+    # TODO: Add this:
+    # if cmd == 'init-children':
+    #     cmd_init_children(parent_root_absolute)
+    #     return
+
+    check_global_ignore()
 
     parent = get_parent_data(parent_root_absolute)
 
@@ -423,26 +532,16 @@ def run():
     if cmd == 'commit':
         children = validate_children(parent, children)
 
-    if cmd == 'add':
-
+    elif cmd == 'add':
         for child in children:
-            rename_git_dir(
-                repo_root=child.root_absolute,
-                from_='.git',
-                to='.gitsub_hidden',
-            )
+            rename_git_dir(child.root_absolute, '.git', '.gitsub_hidden')
+
+    for child in children:
+        lock_children(parent, child)
 
     # Run Git Command
     print(f"{fg.li_black}Gitsub: Run git command.{fg.rs}")
-    sp.run(['git'] + sys.argv[1:])
-
-    # Lock child repos
-    for child in children:
-        rename_git_dir(
-            repo_root=child.root_absolute,
-            from_='.gitsub_hidden',
-            to='.git',
-        )
+    run_git_cmd(cmd, args)
 
     for child in children:
-        update_gitsub_file(parent, child)
+        rename_git_dir(child.root_absolute, '.gitsub_hidden', '.git')
