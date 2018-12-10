@@ -12,7 +12,7 @@ It's much simpler than `submodule` and `subtree`. There are no complicated comma
 
 If you run `git commit ...` in a parent-repo that contains one or several child-repos, the files of the child-repos will be added to the parent-repo, except for their `.git` directories.
 
-Without `gitsub` git would complain if you run `git add -A` in a directory that itself contains a `.git` dir in one of its subdirecotries. `gitsub` works around this by temporarily renaming each `.git` to `.git_hidden` for the duration of the command.
+Without `gitsub` git would complain if you run `git add -A` in a directory that itself contains a `.git` dir in one of its subdirecotries. `gitsub` works around this by temporarily renaming each `.git` to `.gitsub_hidden` for the duration of the command.
 
 If you run `git commit ...` on a parent-repo, the current *branch-name*, *commit-hash* and *remote-url* of each child-repo is locked into `.gitsub` (a file that sits in the root directory of the parent).
 

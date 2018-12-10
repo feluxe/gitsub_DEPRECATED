@@ -295,20 +295,20 @@ def get_children_from_fs(parent):
         if git_dir_path == '.git':
             continue
 
-        if git_dir_path.split('.')[-1] not in ['git', 'git_hidden']:
+        if git_dir_path.split('.')[-1] not in ['git', 'gitsub_hidden']:
             continue
 
         if os.path.isfile(git_dir_path):
             continue
 
         child_root_relative = git_dir_path\
-            .replace('/.git_hidden', '')\
+            .replace('/.gitsub_hidden', '')\
             .replace('/.git', '')
 
-        if '.git_hidden' in git_dir_path:
+        if '.gitsub_hidden' in git_dir_path:
             rename_git_dir(
                 repo_root=child_root_relative,
-                from_='.git_hidden',
+                from_='.gitsub_hidden',
                 to='.git',
             )
 
@@ -429,7 +429,7 @@ def run():
             rename_git_dir(
                 repo_root=child.root_absolute,
                 from_='.git',
-                to='.git_hidden',
+                to='.gitsub_hidden',
             )
 
     # Run Git Command
@@ -440,7 +440,7 @@ def run():
     for child in children:
         rename_git_dir(
             repo_root=child.root_absolute,
-            from_='.git_hidden',
+            from_='.gitsub_hidden',
             to='.git',
         )
 
