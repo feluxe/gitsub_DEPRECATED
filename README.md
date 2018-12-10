@@ -3,7 +3,7 @@
 
 ## Description
 
-A simple but effective wrapper around git that allows for nested repositories.
+A simple but effective wrapper around git that allows for (deeply) nested repositories.
 
 It's much simpler than `submodule` and `subtree`. There are no complicated commands to remember... Just cd into your repo directories (parent or child doesn't matter) and run your git commands as usual.
 
