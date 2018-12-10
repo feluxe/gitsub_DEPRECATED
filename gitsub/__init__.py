@@ -52,7 +52,7 @@ def check_global_ignore():
                         return
 
     print(
-        "Error: Cannot find '.gitsub_hidden/' entry in global or local"\
+        "Error: Cannot find '.gitsub_hidden/' entry in global or local "\
         "'.gitignore' file."\
         "\n\nAdd this line:\n\n.gitsub_hidden/\n\nto your global or "\
         "local gitignore file."
