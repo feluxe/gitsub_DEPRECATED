@@ -53,7 +53,7 @@ def check_global_ignore():
                     ]:
                         return
 
-    print(
+    sys.stderr.write(
         "Error: Cannot find '.gitsub_hidden/' entry in global or local "\
         "'.gitignore' file."\
         "\n\nAdd this line:\n\n.gitsub_hidden/\n\nto your global or "\
@@ -73,7 +73,7 @@ def get_repo_root() -> str:
     elif r.returncode == 0:
         pass
     else:
-        print(r.stderr)
+        sys.stderr.write(r.stderr)
         sys.exit(1)
 
     repo_root = r.stdout.decode('utf8').replace('\n', '')
@@ -440,7 +440,7 @@ def validate_children(
             futures.append((f, child))
 
         if any([f.result() for f, child in futures]):
-            print(err_msg_unstaged)
+            sys.stderr.write(err_msg_unstaged)
             sys.exit(1)
 
         futures = []
@@ -476,7 +476,7 @@ def validate_children(
                 futures.append((f, child))
 
             if not all([f.result() for f, child in futures]):
-                print(err_msg_unstaged)
+                sys.stderr.write(err_msg_unstaged)
                 sys.exit(1)
 
         # Check3 (sequential): This is for repos that require login data from
@@ -488,7 +488,7 @@ def validate_children(
 
         for child in children_sequential:
             if not check_child_commit_exist_in_remote(parent, child):
-                print(err_msg_unstaged)
+                sys.stderr.write(err_msg_unstaged)
                 sys.exit(1)
 
     return all_children
