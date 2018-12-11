@@ -183,7 +183,7 @@ Run this command to check if all children are ready to be commited. You usually 
 
 **build from source**
 
-You can build `gitsub` from source and put it into `PATH`:
+You can build `gitsub` from source and put it into your `PATH`:
 
 ```
 cd /tmp
@@ -201,7 +201,7 @@ sudo cp dist/pyinstaller/gitsub /usr/local/bin
 
 **add alias**
 
-You can call the `gitsub` directly or add an alias to your terminal `rc` file, e.g.
+You can call the `gitsub` binary directly or add an alias to your terminal `rc` file, e.g.
 
 `~/.zshrc`
 
@@ -210,7 +210,7 @@ You can call the `gitsub` directly or add an alias to your terminal `rc` file, e
 
 ## Development
 
-Build from source and run test command. This leaves you with a `pysub` binary and a test boilerplate in `/tmp/gitsub` to play with.
+In the following example we build from source and run the test command. This leaves you with a `gitsub` binary and a test boilerplate in `/tmp/gitsub` to play with.
 
 ```
 git clone https://github.com/feluxe/gitsub.git
