@@ -21,7 +21,7 @@ def cmd_init_parent(parent_root_absolute):
 
     f = f'{parent_root_absolute}/.gitsub'
     if os.path.exists(f):
-        print('This repo already has a .gitsub file in its root.')
+        sys.stderr.write('This repo already has a .gitsub file in its root.')
     else:
         print(f'New .gitsub file at: {f}')
         open(f, 'a').close()
@@ -169,7 +169,11 @@ def get_remote_locations(root_absolute: str) -> List[Remote]:
                 remotes.append(remote)
 
     if len(remotes) < 1:
-        print(f"Cannot find (fetch) remote for: {root_absolute}")
+        sys.stderr.write(
+            f"Cannot find (fetch) remote for: {root_absolute}\n\n"\
+            "Please add a (fetch) remote."
+        )
+        sys.exit(1)
 
     return remotes
 
@@ -257,7 +261,7 @@ def has_child_unpushed_changes(parent: Parent, child: Child):
     changes = r.stdout.decode('utf8').replace('\n', '')
 
     if changes != '':
-        print(f"\nUnstaged Changes in: {child.root_relative}")
+        sys.stderr.write(f"\nUnstaged Changes in: {child.root_relative}")
         return True
     else:
         return False
@@ -312,7 +316,7 @@ def check_child_commit_exist_in_remote(parent: Parent, child: Child):
         )
 
         if not commit_exists(remote.cache_root_absolute, child.current_commit):
-            print(
+            sys.stderr.write(
                 f"\n    Current commit cannot be found on remote for: {child.root_relative}"
             )
             return False
