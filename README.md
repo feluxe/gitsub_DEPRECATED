@@ -28,7 +28,7 @@ I think that's pretty much all you need to know. It's simple but it works intuit
 
 Let's start from scratch.
 
-We have this normal git repo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything yet.
+We have a normal git repo called `parent_repo`. The repo already contains two directories named `child_repo1` and `child_repo2`, but they don't contain anything yet.
 
 ```
  parent_repo
@@ -167,7 +167,7 @@ After you clone a parent-repo, you need to run this command in oder to populate 
 
 `git check-children`
 
-Run this command to check if all children are ready to be commited. You usually don't have to do this, since gitsub will warn you anyways. But it might be handy in some cases.
+Run this command to check if all children are ready to be commited. You usually don't have to do this, since gitsub will warn you anyways. But it might be handy in some situations.
 
 
 ## Requirements
