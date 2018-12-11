@@ -165,6 +165,11 @@ Run this command in a git repo to create a `.gitsub` file in its root.
 After you clone a parent-repo, you need to run this command in oder to populate the children with their `.git` direcotry and set each HEAD to the correct branch/commit.
 
 
+`git check-children`
+
+Run this command to check if all children are ready to be commited. You usually don't have to do this, since gitsub will warn you anyways. But it might be handy in some cases.
+
+
 ## Requirements
 
 * Unix like system
