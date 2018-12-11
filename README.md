@@ -174,7 +174,7 @@ Run this command to check if all children are ready to be commited. You usually 
 
 * Unix like system
 * Tested with `git version 2.19`
-* Each child-repo must have set a remote location.
+* Each child-repo must have a remote location set.
 * A cache directory: `~/.cache`
 
 
