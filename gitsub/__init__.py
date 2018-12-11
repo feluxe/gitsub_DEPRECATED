@@ -533,7 +533,7 @@ def run():
 
     children = get_children_from_fs(parent)
 
-    if cmd == 'commit':
+    if cmd in ['commit', 'check-children']:
         children = validate_children(parent, children)
 
     elif cmd == 'add':
