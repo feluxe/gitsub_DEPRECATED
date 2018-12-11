@@ -18,7 +18,7 @@ If you run `git commit ...` on a parent-repo, the current *branch-name*, *commit
 
 Since the parent-repo does't contain the `.git` direcories of its children, you have to run `git init-children` after you clone a parent-repo. That will automatically clone each child-repo into the correct sub direcotry of its parent and set the HEAD of each child-repo to the branch/commit that was locked in `.gitsub`.
 
-If you try to commit to a parent-repo while one of its children contains uncommited changes, gitsub will complain and tell you to commit and push the changes in order to proceed. This mechanism is needed for the parent to keep its child-repo files in sync with their commits, so that a `git clone myparent` and a `git inint-children` will always create the same tree.
+If you try to commit to a parent-repo while one of its children contains uncommited changes, gitsub will complain and tell you to commit and push the changes in order to proceed. This mechanism is needed for the parent to keep its child-repo files in sync with their commits, so that a `git clone myparent` and a `git inint-children` always create the same tree.
 
 I think that's pretty much all you need to know. It's simple but it works intuitivly well. Gitsub will warn you whenever something is needed.
 
