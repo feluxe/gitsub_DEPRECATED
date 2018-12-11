@@ -13,7 +13,7 @@ CACHEDIR = os.path.expanduser('~/.cache/gitsub')
 
 err_msg_unstaged = """
 Note: You cannot update a parent repo, as long as it contains subrepos with changes 
-that haven't been pushed to their remote locations.
+that haven't been pushed to their remote locations.\n
 """
 
 
@@ -21,7 +21,7 @@ def cmd_init_parent(parent_root_absolute):
 
     f = f'{parent_root_absolute}/.gitsub'
     if os.path.exists(f):
-        sys.stderr.write('This repo already has a .gitsub file in its root.')
+        sys.stderr.write('This repo already has a .gitsub file in its root.\n')
     else:
         print(f'New .gitsub file at: {f}')
         open(f, 'a').close()
@@ -57,7 +57,7 @@ def check_global_ignore():
         "Error: Cannot find '.gitsub_hidden/' entry in global or local "\
         "'.gitignore' file."\
         "\n\nAdd this line:\n\n.gitsub_hidden/\n\nto your global or "\
-        "local gitignore file."
+        "local gitignore file.\n"
     )
     sys.exit(1)
 
@@ -171,7 +171,7 @@ def get_remote_locations(root_absolute: str) -> List[Remote]:
     if len(remotes) < 1:
         sys.stderr.write(
             f"Cannot find (fetch) remote for: {root_absolute}\n\n"\
-            "Please add a (fetch) remote."
+            "Please add a (fetch) remote.\n"
         )
         sys.exit(1)
 
@@ -261,7 +261,7 @@ def has_child_unpushed_changes(parent: Parent, child: Child):
     changes = r.stdout.decode('utf8').replace('\n', '')
 
     if changes != '':
-        sys.stderr.write(f"\nUnstaged Changes in: {child.root_relative}")
+        sys.stderr.write(f"\nUnstaged Changes in: {child.root_relative}\n")
         return True
     else:
         return False
@@ -317,7 +317,7 @@ def check_child_commit_exist_in_remote(parent: Parent, child: Child):
 
         if not commit_exists(remote.cache_root_absolute, child.current_commit):
             sys.stderr.write(
-                f"\n    Current commit cannot be found on remote for: {child.root_relative}"
+                f"\n    Current commit cannot be found on remote for: {child.root_relative}\n"
             )
             return False
         else:
