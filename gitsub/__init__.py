@@ -48,7 +48,9 @@ def check_global_ignore():
         if os.path.isfile(path):
             with open(path, 'r') as f:
                 for line in f.readlines():
-                    if line.strip() in ['.gitsub_hidden/', '**/.gitsub_hidden']:
+                    if line.strip() in [
+                        '.gitsub_hidden/', '**/.gitsub_hidden'
+                    ]:
                         return
 
     print(
@@ -504,13 +506,15 @@ def run():
     cmd = sys.argv[1]
     args = sys.argv[2:]
 
-    if cmd not in ['init', 'add', 'commit', 'push', 'init-gitsub']:
+    if cmd not in [
+        'init', 'add', 'commit', 'push', 'init-parent', 'check-children'
+    ]:
         run_git_cmd(cmd, args)
         return
 
     parent_root_absolute = get_repo_root()
 
-    if cmd == 'init-paretn':
+    if cmd == 'init-parent':
         cmd_init_parent(parent_root_absolute)
         return
 
@@ -538,6 +542,9 @@ def run():
 
     for child in children:
         lock_children(parent, child)
+
+    if cmd in ['check-children']:
+        return
 
     # Run Git Command
     print(f"{fg.li_black}Gitsub: Run git command.{fg.rs}")
