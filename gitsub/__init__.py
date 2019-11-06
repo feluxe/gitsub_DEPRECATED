@@ -12,7 +12,7 @@ import requests
 CACHEDIR = os.path.expanduser('~/.cache/gitsub')
 
 err_msg_unstaged = """
-Note: You cannot update a parent repo, as long as it contains subrepos with changes 
+Note: You cannot update a parent repo, as long as it contains subrepos with changes
 that haven't been pushed to their remote locations.\n
 """
 
@@ -48,9 +48,7 @@ def check_global_ignore():
         if os.path.isfile(path):
             with open(path, 'r') as f:
                 for line in f.readlines():
-                    if line.strip() in [
-                        '.gitsub_hidden/', '**/.gitsub_hidden'
-                    ]:
+                    if line.strip() in ['.gitsub_hidden/', '**/.gitsub_hidden']:
                         return
 
     sys.stderr.write(
@@ -378,7 +376,7 @@ def lock_children(parent: Parent, child: Child) -> None:
 def get_children_from_fs(parent: Parent) -> Generator[Child, None, None]:
     """
     A generator searching for `.git`/`.gitsub_hidden` dirs.
-    It also runs some paht validation checks and renames `.gitsub_hidden` to 
+    It also runs some paht validation checks and renames `.gitsub_hidden` to
     `.git`.
     """
 
@@ -426,14 +424,10 @@ def validate_children(
 
             all_children.append(child)
 
-            f: Future = executor.submit(
-                has_child_changes_in_parent, parent, child
-            )
+            f: Future = executor.submit(has_child_changes_in_parent, parent, child)
             futures.append((f, child))
 
-        children_filtered = [
-            child for f, child in futures if f.result() == True
-        ]
+        children_filtered = [child for f, child in futures if f.result() == True]
 
         # Check2 (in parallel): Has child-repo unpushed changes?
 
@@ -474,9 +468,7 @@ def validate_children(
 
             futures = []
             for child in children_parallel:
-                f = executor.submit(
-                    check_child_commit_exist_in_remote, parent, child
-                )
+                f = executor.submit(check_child_commit_exist_in_remote, parent, child)
                 futures.append((f, child))
 
             if not all([f.result() for f, child in futures]):
@@ -510,9 +502,7 @@ def run():
     cmd = sys.argv[1]
     args = sys.argv[2:]
 
-    if cmd not in [
-        'init', 'add', 'commit', 'push', 'init-parent', 'check-children'
-    ]:
+    if cmd not in ['init', 'add', 'commit', 'push', 'init-parent', 'check-children']:
         run_git_cmd(cmd, args)
         return
 
